@@ -9,7 +9,7 @@
 #
 
 CC=g++
-CFLAGS=-Wpedantic -Wall -Wextra -Werror -O2 -std=c++11
+CFLAGS=-Wpedantic -Wall -Wextra -Werror -O2 -fopenmp -std=c++11
 
 all: kmeans
 
