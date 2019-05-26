@@ -55,6 +55,7 @@ typedef struct point_t
         x = xi;
         y = yi;
     };
+
 } point_t;
 
 /* Overload `<<` for prettier printing. */

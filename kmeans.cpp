@@ -28,7 +28,8 @@
 /*********************************************************
         Your extra headers and static declarations
  *********************************************************/
-
+#include <cstring>
+#include <omp.h>
 /*********************************************************
                            End
  *********************************************************/
@@ -148,50 +149,100 @@ void
 kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
         const int pn, const int cn)
 {
-    bool converge = true;
+    bool converge;
 
     /* Loop through the following two stages until no point changes its color
        during an iteration. */
     do {
+        /* Conduct a distributive k-means algorithm, thus, allocate a t by c
+           matrix to accommodate distributive results, where t is the number
+           of threads, c is the number of centers. */
+        int num_threads = omp_get_max_threads();
+        // Accumulation for each partition
+        point_t* sums = new point_t[num_threads * cn];
+        // Counts of accumulation for each partition
+        int* counts = new int[num_threads * cn];
+        memset(counts, 0, num_threads * cn);
+
+        // Record the total number of threads
+        int thread_num = 0;
+
+        // Reset converge flag
         converge = true;
 
-        /* Compute the color of each point. A point gets assigned to the
+        /* Map: Compute the color of each point. A point gets assigned to the
            cluster with the nearest center point. */
-        for (int i = 0; i < pn; ++i) {
-            color_t new_color = cn;
-            double min_dist = std::numeric_limits<double>::infinity();
+        #pragma omp parallel
+        {
+            #pragma omp master
+            thread_num = omp_get_num_threads();
 
-            for (color_t c = 0; c < cn; ++c) {
-                double dist = sqrt(pow(data[i].getX() - mean[c].getX(), 2) +
-                                   pow(data[i].getY() - mean[c].getY(), 2));
-                if (dist < min_dist) {
-                    min_dist = dist;
-                    new_color = c;
+            int id = omp_get_thread_num();
+
+            // Note that, here reduce converge for each threads
+            #pragma omp for reduction(&& : converge)
+            for (int i = 0; i < pn; ++i)
+            {
+                color_t new_color = cn;
+                double min_dist = std::numeric_limits<double>::infinity();
+
+                for (color_t c = 0; c < cn; ++c)
+                {
+                    double dist = sqrt(pow(data[i].getX() - mean[c].getX(), 2) +
+                                       pow(data[i].getY() - mean[c].getY(), 2));
+                    if (dist < min_dist)
+                    {
+                        min_dist = dist;
+                        new_color = c;
+                    }
                 }
-            }
 
-            if (coloring[i] != new_color) {
-                coloring[i] = new_color;
-                converge = false;
+                if (coloring[i] != new_color)
+                {
+                    coloring[i] = new_color;
+                    converge = false;
+                    // printf("Thread: %d, point %d, center %d\n", id, i, new_color);
+                }
+
+                // Now accumulate points for each centers
+                int idx = id * cn + new_color;
+                point_t& p = sums[idx];
+                double x = p.getX() + data[i].getX();
+                double y = p.getY() + data[i].getY();
+                p.setXY(x, y);
+                // Accumulate counts for reduction
+                counts[idx]++;
             }
         }
+        
+        /* Reduction: Calculate the new mean for each cluster to be the
+           current average of point positions in the cluster. */
+        for (int i = 0; i < cn; i++)
+        {
+            point_t agg_sum;
+            int agg_count = 0;
 
-        /* Calculate the new mean for each cluster to be the current average
-           of point positions in the cluster. */
-        for (color_t c = 0; c < cn; ++c) {
-            double sum_x = 0, sum_y = 0;
-            int count = 0;
+            for(int j = 0; j < thread_num; j++){
+                int idx = j * cn + i;
+                point_t& s = sums[idx];
 
-            for (int i = 0; i < pn; ++i) {
-                if (coloring[i] == c) {
-                    sum_x += data[i].getX();
-                    sum_y += data[i].getY();
-                    count++;
-                }
+                // Sum up all the summation of partition
+                double x = s.getX() + agg_sum.getX();
+                double y = s.getY() + agg_sum.getY();
+                agg_sum.setXY(x, y);
+                // Sum up all counts
+                agg_count += counts[idx];
             }
 
-            mean[c].setXY(sum_x / count, sum_y / count);
+            mean[i].setXY(
+                agg_sum.getX() / (double)agg_count
+                , agg_sum.getY() / (double)agg_count
+            );
+            // std::cout << "Mean:" << mean[i] << std::endl;
+            // std::cout << "AGG:" << agg_sum << std::endl;
+            // std::cout << "COUNT:" << agg_count << std::endl;
         }
+
     } while (!converge);
 }
 
