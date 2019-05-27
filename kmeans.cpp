@@ -114,10 +114,10 @@ main (int argc, char *argv[])
               << " milliseconds." << std::endl; 
 
     /* Write the final results to `res.txt`, in the same format as input. */
-    fprintf(fo, "%d / %d\n", pn, cn);
+    assert(fprintf(fo, "%d / %d\n", pn, cn) == 2);
     for (i = 0; i < pn; ++i)
-        fprintf(fo, "%.8lf, %.8lf, %d\n", data[i].getX(), data[i].getY(),
-                coloring[i]);
+        assert(fprintf(fo, "%.8lf, %.8lf, %d\n", data[i].getX(), data[i].getY(),
+                coloring[i]) == 2);
 
     /* Free the resources and return. */
     delete[](data);
