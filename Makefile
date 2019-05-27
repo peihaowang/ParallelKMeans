@@ -34,3 +34,6 @@ gen: generate.py
 
 plot: plot.py
 	python3 plot.py ${FILE}
+
+submission:
+	tar czvf project3.tar .git
