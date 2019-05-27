@@ -163,7 +163,7 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
         point_t* sums = new point_t[num_threads * cn];
         // Counts of accumulation for each partition
         int* counts = new int[num_threads * cn];
-        memset(counts, 0, num_threads * cn);
+        memset(counts, 0, num_threads * cn * sizeof(int));
 
         // Record the total number of threads
         int thread_num = 0;
@@ -200,9 +200,14 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 
                 if (coloring[i] != new_color)
                 {
+                    // if(id == 0){
+                    //     double dist = sqrt(pow(data[i].getX() - mean[coloring[i]].getX(), 2) +
+                    //         pow(data[i].getY() - mean[coloring[i]].getY(), 2));
+                    //     printf("Thread: %d, point %d, old %d(%lf), center %d(%lf)\n", id, i, coloring[i], dist, new_color, min_dist);
+                    // }
+
                     coloring[i] = new_color;
                     converge = false;
-                    // printf("Thread: %d, point %d, center %d\n", id, i, new_color);
                 }
 
                 // Now accumulate points for each centers

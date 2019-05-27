@@ -17,12 +17,15 @@ ifeq ($(SYSNAME), Darwin)
 	CC=g++-9
 endif
 
-CFLAGS=-Wpedantic -Wall -Wextra -Werror -O2 -fopenmp -std=c++11
+CFLAGS=-Wpedantic -Wall -Wextra -Werror -O3 -fopenmp -std=c++11
 
 all: kmeans
 
 kmeans: kmeans.cpp kmeans.h
 	${CC} ${CFLAGS} kmeans.cpp -o kmeans
+
+benchmark: benchmark.cpp kmeans.h
+	${CC} ${CFLAGS} benchmark.cpp -o benchmark
 
 .PHONY: clean gen plot
 
