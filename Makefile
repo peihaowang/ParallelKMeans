@@ -9,11 +9,11 @@
 #
 
 # Adapt this makefile to macos
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S), Linux)
+SYSNAME := $(shell uname -s)
+ifeq ($(SYSNAME), Linux)
 	CC=g++
 endif
-ifeq ($(UNAME_S), Darwin)
+ifeq ($(SYSNAME), Darwin)
 	CC=g++-9
 endif
 
