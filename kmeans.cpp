@@ -157,7 +157,11 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
     do {
         /* Conduct a distributive k-means algorithm, thus, allocate a t by c
            matrix to accommodate distributive results, where t is the number
-           of threads, c is the number of centers. */
+           of threads, c is the number of centers.
+           More about the major order of matrix: the distributive algorithm
+           saves centers for one threads in one row, which could effectively
+           avoid cache coherence issues, as the different threads hold different
+           continuous memory space. */
         int num_threads = omp_get_max_threads();
         // Accumulation for each partition
         point_t* sums = new point_t[num_threads * cn];
@@ -189,8 +193,10 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 
                 for (color_t c = 0; c < cn; ++c)
                 {
-                    double dist = sqrt(pow(data[i].getX() - mean[c].getX(), 2) +
-                                       pow(data[i].getY() - mean[c].getY(), 2));
+                    double dist = sqrt(
+                        pow(data[i].getX() - mean[c].getX(), 2)
+                        + pow(data[i].getY() - mean[c].getY(), 2)
+                    );
                     if (dist < min_dist)
                     {
                         min_dist = dist;
@@ -200,22 +206,16 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 
                 if (coloring[i] != new_color)
                 {
-                    // if(id == 0){
-                    //     double dist = sqrt(pow(data[i].getX() - mean[coloring[i]].getX(), 2) +
-                    //         pow(data[i].getY() - mean[coloring[i]].getY(), 2));
-                    //     printf("Thread: %d, point %d, old %d(%lf), center %d(%lf)\n", id, i, coloring[i], dist, new_color, min_dist);
-                    // }
-
                     coloring[i] = new_color;
                     converge = false;
                 }
 
-                // Now accumulate points for each centers
                 int idx = id * cn + new_color;
-                point_t& p = sums[idx];
-                double x = p.getX() + data[i].getX();
-                double y = p.getY() + data[i].getY();
-                p.setXY(x, y);
+                // Now accumulate points for each centers
+                sums[idx].setXY(
+                    sums[idx].getX() + data[i].getX()
+                    , sums[idx].getY() + data[i].getY()
+                );
                 // Accumulate counts for reduction
                 counts[idx]++;
             }
@@ -223,6 +223,7 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
         
         /* Reduction: Calculate the new mean for each cluster to be the
            current average of point positions in the cluster. */
+        #pragma omp parallel for
         for (int i = 0; i < cn; i++)
         {
             point_t agg_sum;
@@ -230,12 +231,11 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 
             for(int j = 0; j < thread_num; j++){
                 int idx = j * cn + i;
-                point_t& s = sums[idx];
-
                 // Sum up all the summation of partition
-                double x = s.getX() + agg_sum.getX();
-                double y = s.getY() + agg_sum.getY();
-                agg_sum.setXY(x, y);
+                agg_sum.setXY(
+                    sums[idx].getX() + agg_sum.getX()
+                    , sums[idx].getY() + agg_sum.getY()
+                );
                 // Sum up all counts
                 agg_count += counts[idx];
             }
@@ -244,9 +244,6 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                 agg_sum.getX() / agg_count
                 , agg_sum.getY() / agg_count
             );
-            // std::cout << "Mean:" << mean[i] << std::endl;
-            // std::cout << "AGG:" << agg_sum << std::endl;
-            // std::cout << "COUNT:" << agg_count << std::endl;
         }
 
         delete[] sums;
