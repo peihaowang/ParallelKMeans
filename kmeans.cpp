@@ -29,6 +29,7 @@
         Your extra headers and static declarations
  *********************************************************/
 #include <cstring>
+#include <cassert>
 #include <omp.h>
 /*********************************************************
                            End
