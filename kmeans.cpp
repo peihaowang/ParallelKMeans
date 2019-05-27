@@ -202,7 +202,7 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                 {
                     coloring[i] = new_color;
                     converge = false;
-                    // printf("Thread: %d, point %d, center %d\n", id, i, new_color);
+                    printf("Thread: %d, point %d, center %d\n", id, i, new_color);
                 }
 
                 // Now accumulate points for each centers
@@ -236,8 +236,8 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
             }
 
             mean[i].setXY(
-                agg_sum.getX() / (double)agg_count
-                , agg_sum.getY() / (double)agg_count
+                agg_sum.getX() / agg_count
+                , agg_sum.getY() / agg_count
             );
             // std::cout << "Mean:" << mean[i] << std::endl;
             // std::cout << "AGG:" << agg_sum << std::endl;
