@@ -53,25 +53,65 @@ typedef struct point_t
     double getY(void) const { return y; };
 
     /* Assign a new (x, y) position. */
-    void setXY(double xi, double yi) {
+    inline void setXY(double xi, double yi)
+    {
         x = xi;
         y = yi;
-    };
+    }
 
     /* Overload operators */
-    point_t& operator+= (const point_t &other) 
+    point_t& operator= (const point_t& rhs)
+    {
+        setXY(rhs.getX(), rhs.getY());
+        return *this;
+    }
+
+    point_t operator+ (double scale)
+    {
+        point_t ret;
+        __m128d a = _mm_loadu_pd((double*)this);
+        __m128d b = _mm_load1_pd(&scale);
+
+        _mm_storeu_pd((double*)&ret, _mm_add_pd(a, b));
+
+        return ret;
+    }
+
+    point_t operator- (double scale)
+    {
+        point_t ret;
+        __m128d a = _mm_loadu_pd((double*)this);
+        __m128d b = _mm_load1_pd(&scale);
+
+        _mm_storeu_pd((double*)&ret, _mm_sub_pd(a, b));
+
+        return ret;
+    }
+
+    point_t operator/ (double scale)
+    {
+        point_t ret;
+        __m128d a = _mm_loadu_pd((double*)this);
+        __m128d b = _mm_load1_pd(&scale);
+
+        _mm_storeu_pd((double*)&ret, _mm_div_pd(a, b));
+
+        return ret;
+    }
+
+    point_t& operator+= (const point_t& rhs) 
     {
         __m128d a = _mm_loadu_pd((double*)this);
-        __m128d b = _mm_loadu_pd((double*)&other);
+        __m128d b = _mm_loadu_pd((double*)&rhs);
 
         _mm_storeu_pd((double*)this, _mm_add_pd(a, b));
         return *this;
     }
 
-    point_t& operator-= (const point_t &other)
+    point_t& operator-= (const point_t& rhs)
     {
         __m128d a = _mm_loadu_pd((double*)this);
-        __m128d b = _mm_loadu_pd((double*)&other);
+        __m128d b = _mm_loadu_pd((double*)&rhs);
 
         _mm_storeu_pd((double*)this, _mm_sub_pd(a, b));
 
@@ -80,8 +120,8 @@ typedef struct point_t
 
     point_t& operator/= (double scale)
     {
-        double pt[2] = {x, y};
-        __m128d a = _mm_loadu_pd(pt);
+        // double pt[2] = {x, y};
+        __m128d a = _mm_loadu_pd((double*)this);
         __m128d b = _mm_load1_pd(&scale);
 
         _mm_storeu_pd((double*)this, _mm_div_pd(a, b));

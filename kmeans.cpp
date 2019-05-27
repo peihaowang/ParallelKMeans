@@ -168,6 +168,8 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 {
     bool converge;
 
+    int num_threads = omp_get_max_threads();
+
     /* Loop through the following two stages until no point changes its color
        during an iteration. */
     do {
@@ -178,16 +180,16 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
            saves centers for one threads in one row, which could effectively
            avoid cache coherence issues, as the different threads hold different
            continuous memory space. */
-        int num_threads = omp_get_max_threads();
-        // Accumulation for each partition
-        point_t* sums = new point_t[num_threads * cn];
-        // Counts of accumulation for each partition
-        int* counts = new int[num_threads * cn];
-        memset(counts, 0, num_threads * cn * sizeof(int));
 
-        point_t* agg_sum = new point_t[cn];
-        int* agg_count = new int[cn];
-        memset(agg_count, 0, cn * sizeof(int));
+        // Map matrices
+        point_t* sums = new point_t[num_threads * cn];  // Accumulation for each partition
+        int* counts = new int[num_threads * cn];        // Counts of accumulation for each partition
+        for (int i = 0; i < num_threads * cn; i++) counts[i] = 0;
+
+        // Reduction vectors
+        point_t* agg_sum = new point_t[cn];             // Aggregation summation of each parition
+        int* agg_count = new int[cn];                   // Aggregation summation of counts 
+        for (int i = 0; i < cn; i++) agg_count[i] = 0;
 
         // Record the total number of threads
         // int thread_num = 0;
@@ -203,6 +205,12 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
             // thread_num = omp_get_num_threads();
 
             int id = omp_get_thread_num();
+            int offset = id * cn;
+
+            // for (int i = 0; i < cn; i++) {
+            //     sums[offset + i].setXY(0.0, 0.0);
+            //     counts[offset + i] = 0;
+            // }
 
             // Note that, here reduce converge for each threads
             #pragma omp for reduction(&& : converge)
@@ -213,7 +221,8 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 
                 for (color_t c = 0; c < cn; ++c)
                 {
-                    double dist = _m_mm_pt_dis(data[i], mean[c]); // pow(data[i].getX() - mean[c].getX(), 2) + pow(data[i].getY() - mean[c].getY(), 2);
+                    // double dist = pow(data[i].getX() - mean[c].getX(), 2) + pow(data[i].getY() - mean[c].getY(), 2);
+                    double dist = _m_mm_pt_dis(data[i], mean[c]);
                     if (dist < min_dist)
                     {
                         min_dist = dist;
@@ -227,7 +236,7 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                     converge = false;
                 }
 
-                int idx = id * cn + new_color;
+                int idx = offset + new_color;
                 // Now accumulate points for each centers
                 // sums[idx].setXY(
                 //     sums[idx].getX() + data[i].getX()
@@ -241,7 +250,7 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
             #pragma omp critical
             for (int i = 0; i < cn; i++)
             {
-                int idx = id * cn + i;
+                int idx = offset + i;
                 agg_sum[i] += sums[idx];
                 agg_count[i] += counts[idx];
             }
@@ -249,13 +258,14 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
         
         /* Reduction: Calculate the new mean for each cluster to be the
            current average of point positions in the cluster. */
-        // #pragma omp parallel for
         for(int i = 0; i < cn; i++) {
-            mean[i].setXY(
-                agg_sum[i].getX() / agg_count[i]
-                , agg_sum[i].getY() / agg_count[i]
-            );
+            // mean[i].setXY(
+            //     agg_sum[i].getX() / agg_count[i]
+            //     , agg_sum[i].getY() / agg_count[i]
+            // );
+            mean[i] = agg_sum[i] / agg_count[i];
         }
+
         #if 0
         for (int i = 0; i < cn; i++)
         {
@@ -283,9 +293,11 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
         }
         #endif
 
+        delete[] agg_count;
+        delete[] agg_sum;
+
         delete[] sums;
         delete[] counts;
-
     } while (!converge);
 }
 
