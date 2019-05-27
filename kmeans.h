@@ -15,6 +15,8 @@
 
 #include <iostream>
 #include <iomanip>
+#include <emmintrin.h>
+#include <immintrin.h>
 
 
 /*********************************************************
@@ -56,7 +58,39 @@ typedef struct point_t
         y = yi;
     };
 
+    /* Overload operators */
+    point_t& operator+= (const point_t &other) 
+    {
+        __m128d a = _mm_loadu_pd((double*)this);
+        __m128d b = _mm_loadu_pd((double*)&other);
+
+        _mm_storeu_pd((double*)this, _mm_add_pd(a, b));
+        return *this;
+    }
+
+    point_t& operator-= (const point_t &other)
+    {
+        __m128d a = _mm_loadu_pd((double*)this);
+        __m128d b = _mm_loadu_pd((double*)&other);
+
+        _mm_storeu_pd((double*)this, _mm_sub_pd(a, b));
+
+        return *this;
+    }
+
+    point_t& operator/= (double scale)
+    {
+        double pt[2] = {x, y};
+        __m128d a = _mm_loadu_pd(pt);
+        __m128d b = _mm_load1_pd(&scale);
+
+        _mm_storeu_pd((double*)this, _mm_div_pd(a, b));
+
+        return *this;
+    }
+
 } point_t;
+
 
 /* Overload `<<` for prettier printing. */
 std::ostream&

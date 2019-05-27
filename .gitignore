@@ -1,0 +1,6 @@
+test/
+.vscode/
+.venv/
+.DS_Store
+benchmark
+kmeans

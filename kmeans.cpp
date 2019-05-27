@@ -146,6 +146,22 @@ main (int argc, char *argv[])
  *     5. ...
  *
  */
+
+/* Get distance between two points */
+inline static double _m_mm_pt_dis(const point_t& p1, const point_t& p2)
+{
+    __m128d a = _mm_loadu_pd((double*)&p1);
+    __m128d b = _mm_loadu_pd((double*)&p2);
+
+    __m128d diff = _mm_sub_pd(a, b);
+    diff = _mm_mul_pd(diff, diff);
+
+    double diffArr[2];
+    _mm_storeu_pd(diffArr, diff);
+
+    return diffArr[0] + diffArr[1];
+}
+
 void
 kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
         const int pn, const int cn)
@@ -169,8 +185,12 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
         int* counts = new int[num_threads * cn];
         memset(counts, 0, num_threads * cn * sizeof(int));
 
+        point_t* agg_sum = new point_t[cn];
+        int* agg_count = new int[cn];
+        memset(agg_count, 0, cn * sizeof(int));
+
         // Record the total number of threads
-        int thread_num = 0;
+        // int thread_num = 0;
 
         // Reset converge flag
         converge = true;
@@ -179,8 +199,8 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
            cluster with the nearest center point. */
         #pragma omp parallel
         {
-            #pragma omp master
-            thread_num = omp_get_num_threads();
+            // #pragma omp master
+            // thread_num = omp_get_num_threads();
 
             int id = omp_get_thread_num();
 
@@ -193,10 +213,7 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 
                 for (color_t c = 0; c < cn; ++c)
                 {
-                    double dist = sqrt(
-                        pow(data[i].getX() - mean[c].getX(), 2)
-                        + pow(data[i].getY() - mean[c].getY(), 2)
-                    );
+                    double dist = _m_mm_pt_dis(data[i], mean[c]); // pow(data[i].getX() - mean[c].getX(), 2) + pow(data[i].getY() - mean[c].getY(), 2);
                     if (dist < min_dist)
                     {
                         min_dist = dist;
@@ -212,39 +229,59 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 
                 int idx = id * cn + new_color;
                 // Now accumulate points for each centers
-                sums[idx].setXY(
-                    sums[idx].getX() + data[i].getX()
-                    , sums[idx].getY() + data[i].getY()
-                );
+                // sums[idx].setXY(
+                //     sums[idx].getX() + data[i].getX()
+                //     , sums[idx].getY() + data[i].getY()
+                // );
+                sums[idx] += data[i];
                 // Accumulate counts for reduction
                 counts[idx]++;
+            }
+
+            #pragma omp critical
+            for (int i = 0; i < cn; i++)
+            {
+                int idx = id * cn + i;
+                agg_sum[i] += sums[idx];
+                agg_count[i] += counts[idx];
             }
         }
         
         /* Reduction: Calculate the new mean for each cluster to be the
            current average of point positions in the cluster. */
-        #pragma omp parallel for
+        // #pragma omp parallel for
+        for(int i = 0; i < cn; i++) {
+            mean[i].setXY(
+                agg_sum[i].getX() / agg_count[i]
+                , agg_sum[i].getY() / agg_count[i]
+            );
+        }
+        #if 0
         for (int i = 0; i < cn; i++)
         {
-            point_t agg_sum;
+            point_t &agg_sum = mean[i];
+            agg_sum.setXY(0, 0);
             int agg_count = 0;
 
             for(int j = 0; j < thread_num; j++){
                 int idx = j * cn + i;
                 // Sum up all the summation of partition
-                agg_sum.setXY(
-                    sums[idx].getX() + agg_sum.getX()
-                    , sums[idx].getY() + agg_sum.getY()
-                );
+                // agg_sum.setXY(
+                //     sums[idx].getX() + agg_sum.getX()
+                //     , sums[idx].getY() + agg_sum.getY()
+                // );
+                agg_sum += sums[idx];
                 // Sum up all counts
                 agg_count += counts[idx];
             }
 
-            mean[i].setXY(
-                agg_sum.getX() / agg_count
-                , agg_sum.getY() / agg_count
-            );
+            // mean[i].setXY(
+            //     agg_sum.getX() / agg_count
+            //     , agg_sum.getY() / agg_count
+            // );
+            agg_sum /= agg_count;
         }
+        #endif
 
         delete[] sums;
         delete[] counts;

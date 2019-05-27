@@ -27,10 +27,14 @@ kmeans: kmeans.cpp kmeans.h
 benchmark: benchmark.cpp kmeans.h
 	${CC} ${CFLAGS} benchmark.cpp -o benchmark
 
-.PHONY: clean gen plot
+.PHONY: clean gen plot test
 
 clean:
-	rm -f kmeans
+	rm -f kmeans test/*_o.txt
+
+test:
+	rm -f test/test${ID}.out \
+	&& ./kmeans ./test/test${ID}.in  test/test${ID}.out
 
 gen: generate.py
 	python3 generate.py ${FILE}
