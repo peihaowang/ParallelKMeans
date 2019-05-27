@@ -249,6 +249,9 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
             // std::cout << "COUNT:" << agg_count << std::endl;
         }
 
+        delete[] sums;
+        delete[] counts;
+
     } while (!converge);
 }
 
