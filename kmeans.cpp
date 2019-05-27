@@ -65,7 +65,7 @@ main (int argc, char *argv[])
        K-Means),and read in all data points into static array `data`. */
     int pn, cn;
 
-    fscanf(fi, "%d / %d\n", &pn, &cn);
+    assert(fscanf(fi, "%d / %d\n", &pn, &cn) == 2);
 
     point_t * const data = new point_t[pn];
     color_t * const coloring = new color_t[pn];
@@ -115,10 +115,10 @@ main (int argc, char *argv[])
               << " milliseconds." << std::endl; 
 
     /* Write the final results to `res.txt`, in the same format as input. */
-    assert(fprintf(fo, "%d / %d\n", pn, cn) == 2);
+    fprintf(fo, "%d / %d\n", pn, cn);
     for (i = 0; i < pn; ++i)
-        assert(fprintf(fo, "%.8lf, %.8lf, %d\n", data[i].getX(), data[i].getY(),
-                coloring[i]) == 2);
+        fprintf(fo, "%.8lf, %.8lf, %d\n", data[i].getX(), data[i].getY(),
+                coloring[i]);
 
     /* Free the resources and return. */
     delete[](data);
