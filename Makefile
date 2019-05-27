@@ -8,7 +8,15 @@
 # Jose @ ShanghaiTech University
 #
 
-CC=g++
+# Adapt this makefile to macos
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S), Linux)
+	CC=g++
+endif
+ifeq ($(UNAME_S), Darwin)
+	CC=g++-9
+endif
+
 CFLAGS=-Wpedantic -Wall -Wextra -Werror -O2 -fopenmp -std=c++11
 
 all: kmeans
