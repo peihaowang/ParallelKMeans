@@ -1,1 +1,1 @@
-# Parallelizing-K-Means-Clustering
+# Parallel K-Means Clustering
