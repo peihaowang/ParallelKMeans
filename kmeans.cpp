@@ -241,6 +241,7 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                 counts[new_color]++;
             }
 
+            #pragma omp critical
             for (int i = 0; i < cn; i++)
             {
                 agg_sum[i] += sums[i];
