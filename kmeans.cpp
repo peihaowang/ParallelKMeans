@@ -181,11 +181,6 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
            avoid cache coherence issues, as the different threads hold different
            continuous memory space. */
 
-        // Map matrices
-        point_t* sums = new point_t[num_threads * cn];  // Accumulation for each partition
-        int* counts = new int[num_threads * cn];        // Counts of accumulation for each partition
-        for (int i = 0; i < num_threads * cn; i++) counts[i] = 0;
-
         // Reduction vectors
         point_t* agg_sum = new point_t[cn];             // Aggregation summation of each parition
         int* agg_count = new int[cn];                   // Aggregation summation of counts 
@@ -199,18 +194,18 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 
         /* Map: Compute the color of each point. A point gets assigned to the
            cluster with the nearest center point. */
+        omp_set_num_threads(num_threads);
         #pragma omp parallel
         {
             // #pragma omp master
             // thread_num = omp_get_num_threads();
 
-            int id = omp_get_thread_num();
-            int offset = id * cn;
+            // int id = omp_get_thread_num();
 
-            // for (int i = 0; i < cn; i++) {
-            //     sums[offset + i].setXY(0.0, 0.0);
-            //     counts[offset + i] = 0;
-            // }
+            // Map matrices
+            point_t* sums = new point_t[cn];  // Accumulation for each partition
+            int* counts = new int[cn];        // Counts of accumulation for each partition
+            for (int i = 0; i < cn; i++) counts[i] = 0;
 
             // Note that, here reduce converge for each threads
             #pragma omp for reduction(&& : converge)
@@ -236,68 +231,35 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                     converge = false;
                 }
 
-                int idx = offset + new_color;
                 // Now accumulate points for each centers
                 // sums[idx].setXY(
                 //     sums[idx].getX() + data[i].getX()
                 //     , sums[idx].getY() + data[i].getY()
                 // );
-                sums[idx] += data[i];
+                sums[new_color] += data[i];
                 // Accumulate counts for reduction
-                counts[idx]++;
+                counts[new_color]++;
             }
 
-            #pragma omp critical
             for (int i = 0; i < cn; i++)
             {
-                int idx = offset + i;
-                agg_sum[i] += sums[idx];
-                agg_count[i] += counts[idx];
+                agg_sum[i] += sums[i];
+                agg_count[i] += counts[i];
             }
+
+            delete[] sums;
+            delete[] counts;
         }
         
         /* Reduction: Calculate the new mean for each cluster to be the
            current average of point positions in the cluster. */
         for(int i = 0; i < cn; i++) {
-            // mean[i].setXY(
-            //     agg_sum[i].getX() / agg_count[i]
-            //     , agg_sum[i].getY() / agg_count[i]
-            // );
             mean[i] = agg_sum[i] / agg_count[i];
         }
-
-        #if 0
-        for (int i = 0; i < cn; i++)
-        {
-            point_t &agg_sum = mean[i];
-            agg_sum.setXY(0, 0);
-            int agg_count = 0;
-
-            for(int j = 0; j < thread_num; j++){
-                int idx = j * cn + i;
-                // Sum up all the summation of partition
-                // agg_sum.setXY(
-                //     sums[idx].getX() + agg_sum.getX()
-                //     , sums[idx].getY() + agg_sum.getY()
-                // );
-                agg_sum += sums[idx];
-                // Sum up all counts
-                agg_count += counts[idx];
-            }
-
-            // mean[i].setXY(
-            //     agg_sum.getX() / agg_count
-            //     , agg_sum.getY() / agg_count
-            // );
-            agg_sum /= agg_count;
-        }
-        #endif
 
         delete[] agg_count;
         delete[] agg_sum;
 
-        delete[] sums;
-        delete[] counts;
     } while (!converge);
 }
 
