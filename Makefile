@@ -33,8 +33,15 @@ clean:
 	rm -f kmeans test/*_o.txt
 
 test:
-	rm -f test/test${ID}.out \
+	@rm -f test/test${ID}.out \
 	&& ./kmeans ./test/test${ID}.in  test/test${ID}.out
+
+cmp:
+	@rm -f test/test${ID}.out \
+	&& echo "==== PKMeans ====" \
+	&& ./kmeans ./test/test${ID}.in  test/test${ID}.out \
+	&& echo "=== Benchmark ===" \
+	&& ./benchmark ./test/test${ID}.in  test/test${ID}_s.out
 
 gen: generate.py
 	python3 generate.py ${FILE}
