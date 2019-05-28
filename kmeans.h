@@ -47,6 +47,9 @@ typedef struct point_t
     /* Constructors. */
     point_t() : x(0), y(0) {};
     point_t(double xi, double yi) : x(xi), y(yi) {};
+    point_t(const point_t& other)
+        : x(other.getX()), y(other.getY())
+    { return; }
 
     /* Acquire x or y coordinate. */
     double getX(void) const { return x; };
