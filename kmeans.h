@@ -15,14 +15,14 @@
 
 #include <iostream>
 #include <iomanip>
-#include <emmintrin.h>
-#include <immintrin.h>
 
 
 /*********************************************************
       Your extra "include"s if needed in this header
  *********************************************************/
-
+#include <emmintrin.h>
+#include <immintrin.h>
+#include <cstring>
 /*********************************************************
                            End
  *********************************************************/
