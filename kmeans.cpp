@@ -180,10 +180,10 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
             int block_size = pn / thread_num;
             int start = id * block_size, end = (id + 1) * block_size;
 
-            // if (pn - end < block_size){
-            //     end = pn;
-            //     block_size = end - start;
-            // }
+            if (pn - end < block_size){
+                end = pn;
+                block_size = end - start;
+            }
 
             for (int i = 0; i < block_size/4; ++i)
             {
@@ -213,7 +213,7 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                     diff_y = _mm256_mul_pd(diff_y, diff_y);
 
                     __m256d dist = _mm256_add_pd(diff_x, diff_y);
-
+                    
                     __m256d cmp = _mm256_cmp_pd(dist, min_dist, _CMP_LT_OQ);
 
                     min_dist = _mm256_or_pd(
@@ -230,19 +230,21 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                         )
                     );
 
-                    new_color = _mm256_cvtpd_epi32(_mm256_or_pd(
-                        _mm256_and_pd(
-                            _mm256_cvtepi32_pd(new_color)
-                            , _mm256_xor_pd(
-                                cmp
-                                , _mm256_set1_pd(all_one_double)
+                    new_color = _mm256_cvtpd_epi32(
+                            _mm256_or_pd(
+                                _mm256_and_pd(
+                                    _mm256_cvtepi32_pd(new_color)
+                                    , _mm256_xor_pd(
+                                        cmp
+                                        , _mm256_set1_pd(all_one_double)
+                                    )
+                            )
+                            , _mm256_and_pd(
+                                _mm256_set1_pd((double)c)
+                                , cmp
                             )
                         )
-                        , _mm256_and_pd(
-                            _mm256_set1_pd((double)c)
-                            , cmp
-                        )
-                    ));
+                    );
                 }
 
                 int v_new_colors[4];
