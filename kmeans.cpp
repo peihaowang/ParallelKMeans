@@ -248,10 +248,6 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                 int v_new_colors[4];
                 _mm_storeu_si128((__m128i*)v_new_colors, new_color);
                 for(int c = 0; c < 4; c++){
-                    // if(id == 0 && i == 0){
-                    //     std::cout << j << " " << coloring[j+c] << " " << v_new_colors[c] << std::endl;
-                    // }
-
                     if (coloring[j+c] != v_new_colors[c])
                     {
                         coloring[j+c] = v_new_colors[c];
