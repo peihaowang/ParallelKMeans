@@ -17,7 +17,7 @@ ifeq ($(SYSNAME), Darwin)
 	CC=g++-9
 endif
 
-CFLAGS=-Wpedantic -Wall -Wextra -Werror -O3 -fopenmp -std=c++11
+CFLAGS=-Wpedantic -Wall -Wextra -Werror -O3 -mavx -fopenmp -std=c++11
 
 all: kmeans
 
@@ -38,6 +38,7 @@ test:
 
 cmp:
 	@rm -f test/test${ID}.out \
+	&& rm -f test/test${ID}_s.out \
 	&& echo "==== PKMeans ====" \
 	&& ./kmeans ./test/test${ID}.in  test/test${ID}.out \
 	&& echo "=== Benchmark ===" \
