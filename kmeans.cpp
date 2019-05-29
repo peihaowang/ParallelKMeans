@@ -28,7 +28,6 @@
 /*********************************************************
         Your extra headers and static declarations
  *********************************************************/
-#include <cstring>
 #include <cassert>
 #include <omp.h>
 /*********************************************************
@@ -146,68 +145,31 @@ main (int argc, char *argv[])
  *     5. ...
  *
  */
-
-/* Get distance between two points */
-inline static double _m_mm_pt_dis(const point_t& p1, const point_t& p2)
-{
-    __m128d a = _mm_loadu_pd((double*)&p1);
-    __m128d b = _mm_loadu_pd((double*)&p2);
-
-    __m128d diff = _mm_sub_pd(a, b);
-    diff = _mm_mul_pd(diff, diff);
-
-    double diffArr[2];
-    _mm_storeu_pd(diffArr, diff);
-
-    return diffArr[0] + diffArr[1];
-}
-
 void
 kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
         const int pn, const int cn)
 {
-    bool converge;
+    bool converge = true;
 
-    int num_threads = omp_get_max_threads();
+    auto ts = std::chrono::high_resolution_clock::now();
 
     /* Loop through the following two stages until no point changes its color
        during an iteration. */
     do {
-        /* Conduct a distributive k-means algorithm, thus, allocate a t by c
-           matrix to accommodate distributive results, where t is the number
-           of threads, c is the number of centers.
-           More about the major order of matrix: the distributive algorithm
-           saves centers for one threads in one row, which could effectively
-           avoid cache coherence issues, as the different threads hold different
-           continuous memory space. */
-
-        // Reduction vectors
-        point_t* agg_sum = new point_t[cn];             // Aggregation summation of each parition
-        int* agg_count = new int[cn];                   // Aggregation summation of counts 
-        for (int i = 0; i < cn; i++) agg_count[i] = 0;
-
-        // Record the total number of threads
-        // int thread_num = 0;
-
-        // Reset converge flag
         converge = true;
 
-        /* Map: Compute the color of each point. A point gets assigned to the
+        double agg_sums_x[20] = {0.0f};
+        double agg_sums_y[20] = {0.0f};
+        int agg_counts[20] = {0};
+
+        /* Compute the color of each point. A point gets assigned to the
            cluster with the nearest center point. */
-        omp_set_num_threads(num_threads);
         #pragma omp parallel
         {
-            // #pragma omp master
-            // thread_num = omp_get_num_threads();
+            double sums_x[20] = {0.0f};
+            double sums_y[20] = {0.0f};
+            int counts[20] = {0};
 
-            // int id = omp_get_thread_num();
-
-            // Map matrices
-            point_t* sums = new point_t[cn];  // Accumulation for each partition
-            int* counts = new int[cn];        // Counts of accumulation for each partition
-            for (int i = 0; i < cn; i++) counts[i] = 0;
-
-            // Note that, here reduce converge for each threads
             #pragma omp for reduction(&& : converge)
             for (int i = 0; i < pn; ++i)
             {
@@ -216,8 +178,8 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 
                 for (color_t c = 0; c < cn; ++c)
                 {
-                    // double dist = pow(data[i].getX() - mean[c].getX(), 2) + pow(data[i].getY() - mean[c].getY(), 2);
-                    double dist = _m_mm_pt_dis(data[i], mean[c]);
+                    double dist = pow(data[i].getX() - mean[c].getX(), 2) +
+                                        pow(data[i].getY() - mean[c].getY(), 2);
                     if (dist < min_dist)
                     {
                         min_dist = dist;
@@ -231,36 +193,28 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                     converge = false;
                 }
 
-                // Now accumulate points for each centers
-                // sums[idx].setXY(
-                //     sums[idx].getX() + data[i].getX()
-                //     , sums[idx].getY() + data[i].getY()
-                // );
-                sums[new_color] += data[i];
-                // Accumulate counts for reduction
+                sums_x[new_color] += data[i].getX();
+                sums_y[new_color] += data[i].getY();
                 counts[new_color]++;
             }
 
             #pragma omp critical
-            for (int i = 0; i < cn; i++)
+            for (color_t c = 0; c < cn; ++c)
             {
-                agg_sum[i] += sums[i];
-                agg_count[i] += counts[i];
+                agg_sums_x[c] += sums_x[c];
+                agg_sums_y[c] += sums_y[c];
+                agg_counts[c] += counts[c];
             }
 
-            delete[] sums;
-            delete[] counts;
-        }
-        
-        /* Reduction: Calculate the new mean for each cluster to be the
-           current average of point positions in the cluster. */
-        for(int i = 0; i < cn; i++) {
-            mean[i] = agg_sum[i] / agg_count[i];
+            // yhj
         }
 
-        delete[] agg_count;
-        delete[] agg_sum;
-
+        /* Calculate the new mean for each cluster to be the current average
+           of point positions in the cluster. */
+        for (color_t c = 0; c < cn; ++c)
+        {
+            mean[c].setXY(agg_sums_x[c] / agg_counts[c], agg_sums_y[c] / agg_counts[c]);
+        }
     } while (!converge);
 }
 

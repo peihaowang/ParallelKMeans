@@ -205,7 +205,7 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
             for (int i = 0; i < cn; i++) counts[i] = 0;
             bool localConverge = true;        // Whether all points in current partition is convergent
             // Note that, here reduce converge for each threads
-            #pragma omp for
+            #pragma omp for nowait
             for (int i = 0; i < pn; i += 2)
             {
                 color_t new_colors[2] = {color_t(cn), color_t(cn)};
