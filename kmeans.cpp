@@ -176,30 +176,76 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
             bool local_converge = true;
 
             #pragma omp for nowait
-            for (int i = 0; i < pn; ++i)
+            for (int i = 0; i < pn; i += 2)
             {
-                color_t new_color = cn;
-                double min_dist = std::numeric_limits<double>::infinity();
+                // color_t new_color = cn;
+                // double min_dist = std::numeric_limits<double>::infinity();
+
+
+                color_t new_colors[2] = {color_t(cn), color_t(cn)};
+                double min_dists[2] = {
+                    std::numeric_limits<double>::infinity(),
+                    std::numeric_limits<double>::infinity()
+                };
 
                 for (color_t c = 0; c < cn; ++c)
                 {
-                    double dist = pow(data[i].getX() - mean[c].getX(), 2) +
-                                        pow(data[i].getY() - mean[c].getY(), 2);
-                    if (dist < min_dist)
+                    // double dist = pow(data[i].getX() - mean[c].getX(), 2) +
+                    //                     pow(data[i].getY() - mean[c].getY(), 2);
+                    // if (dist < min_dist)
+                    // {
+                    //     min_dist = dist;
+                    //     new_color = c;
+                    // }
+
+                    __m256d m_data_xy = _mm256_load_pd((double*)&data[i]);
+                    __m256d m_mean_xy = _mm256_broadcast_pd((__m128d*)(&mean[c]));
+                    __m256d m_dist_xy = _mm256_sub_pd(m_data_xy, m_mean_xy);
+                    m_dist_xy = _mm256_mul_pd(m_dist_xy, m_dist_xy);
+                    __m256d m_dists = _mm256_hadd_pd(m_dist_xy, m_dist_xy);
+
+                    double dists[4];
+                    _mm256_store_pd(dists, m_dists);
+
+                    if (dists[0] < min_dists[0])
                     {
-                        min_dist = dist;
-                        new_color = c;
+                        min_dists[0] = dists[0];
+                        new_colors[0] = c;
+                    }
+                    if (i + 1 < pn && dists[2] < min_dists[1])
+                    {
+                        min_dists[1] = dists[2];
+                        new_colors[1] = c;
                     }
                 }
 
-                if (coloring[i] != new_color)
+                // if (coloring[i] != new_color)
+                // {
+                //     coloring[i] = new_color;
+                //     local_converge = false;
+                // }
+                // sums_x[new_color] += data[i].getX();
+                // sums_y[new_color] += data[i].getY();
+                // counts[new_color]++;
+
+                if (coloring[i] != new_colors[0])
                 {
-                    coloring[i] = new_color;
+                    coloring[i] = new_colors[0];
                     local_converge = false;
                 }
-                sums_x[new_color] += data[i].getX();
-                sums_y[new_color] += data[i].getY();
-                counts[new_color]++;
+                if (i + 1 < pn && coloring[i + 1] != new_colors[1])
+                {
+                    coloring[i + 1] = new_colors[1];
+                    local_converge = false;
+                }
+                sums_x[new_colors[0]] += data[i].getX();
+                sums_y[new_colors[0]] += data[i].getY();
+                if (i + 1 < pn) {
+                    sums_x[new_colors[1]] += data[i + 1].getX();
+                    sums_y[new_colors[1]] += data[i + 1].getY();
+                }
+                counts[new_colors[0]]++;
+                counts[new_colors[1]]++;
             }
 
             // The follows are two-stage pipelining reduction
