@@ -29,6 +29,7 @@
         Your extra headers and static declarations
  *********************************************************/
 #include <cassert>
+#include <cstring>
 #include <omp.h>
 /*********************************************************
                            End
@@ -168,32 +169,115 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
            cluster with the nearest center point. */
         #pragma omp parallel
         {
+
             double sums_x[20] = {0.0f};
             double sums_y[20] = {0.0f};
             int counts[20] = {0};
             bool local_converge = true;
 
-            #pragma omp for nowait
-            for (int i = 0; i < pn; ++i)
+            int thread_num = omp_get_num_threads();
+            int id = omp_get_thread_num();
+            int block_size = pn / thread_num;
+            int start = id * block_size, end = (id + 1) * block_size;
+
+            // if (pn - end < block_size){
+            //     end = pn;
+            //     block_size = end - start;
+            // }
+
+            for (int i = 0; i < block_size/4; ++i)
+            {
+                int j = start + (i << 2);
+                // color_t new_color[4] = {cn};
+                // double min_dist[4] = {std::numeric_limits<double>::infinity()};
+
+                double all_one_double;
+                ::memset(&all_one_double, 0xFF, sizeof(double));
+
+                __m256d min_dist = _mm256_set1_pd(std::numeric_limits<double>::infinity());
+                __m128i new_color = _mm_set1_epi32((int)cn);
+
+                for (color_t c = 0; c < cn; ++c)
+                {
+                    __m128i vindex = _mm_set_epi32(6, 4, 2, 0);
+                    __m256d data_xs = _mm256_i32gather_pd((double*)(data+j), vindex, 8);
+                    __m256d data_ys = _mm256_i32gather_pd((double*)(data+j) + 1, vindex, 8);
+                                        
+                    __m256d mean_xs = _mm256_set1_pd(mean[c].x);
+                    __m256d mean_ys = _mm256_set1_pd(mean[c].y);
+
+                    __m256d diff_x = _mm256_sub_pd(data_xs, mean_xs);
+                    __m256d diff_y = _mm256_sub_pd(data_ys, mean_ys);
+
+                    diff_x = _mm256_mul_pd(diff_x, diff_x);
+                    diff_y = _mm256_mul_pd(diff_y, diff_y);
+
+                    __m256d dist = _mm256_add_pd(diff_x, diff_y);
+
+                    __m256d cmp = _mm256_cmp_pd(dist, min_dist, _CMP_LT_OQ);
+
+                    min_dist = _mm256_or_pd(
+                        _mm256_and_pd(
+                            min_dist
+                            , _mm256_xor_pd(
+                                cmp
+                                , _mm256_set1_pd(all_one_double)
+                            )
+                        )
+                        , _mm256_and_pd(
+                            dist
+                            , cmp
+                        )
+                    );
+
+                    new_color = _mm256_cvtpd_epi32(_mm256_or_pd(
+                        _mm256_and_pd(
+                            _mm256_cvtepi32_pd(new_color)
+                            , _mm256_xor_pd(
+                                cmp
+                                , _mm256_set1_pd(all_one_double)
+                            )
+                        )
+                        , _mm256_and_pd(
+                            _mm256_set1_pd((double)c)
+                            , cmp
+                        )
+                    ));
+                }
+
+                int v_new_colors[4];
+                _mm_storeu_si128((__m128i*)v_new_colors, new_color);
+                for(int c = 0; c < 4; c++){
+                    // if(id == 0 && i == 0){
+                    //     std::cout << j << " " << coloring[j+c] << " " << v_new_colors[c] << std::endl;
+                    // }
+
+                    if (coloring[j+c] != v_new_colors[c])
+                    {
+                        coloring[j+c] = v_new_colors[c];
+                        local_converge = false;
+                    }
+
+                    sums_x[v_new_colors[c]] += data[j+c].x;
+                    sums_y[v_new_colors[c]] += data[j+c].y;
+                    counts[v_new_colors[c]]++;
+                }
+            }
+
+            for (int i = start + (block_size/4) * 4; i < end; ++i)
             {
                 color_t new_color = cn;
                 double min_dist = std::numeric_limits<double>::infinity();
 
                 for (color_t c = 0; c < cn; ++c)
                 {
-                    double dist = pow(data[i].getX() - mean[c].getX(), 2) +
-                                        pow(data[i].getY() - mean[c].getY(), 2);
+                    double dist = pow(data[i].x - mean[c].x, 2)
+                        + pow(data[i].y - mean[c].y, 2);
                     if (dist < min_dist)
                     {
                         min_dist = dist;
                         new_color = c;
                     }
-
-                    // __m256d m_data_xy = _mm256_load_pd((double*)&data[i]);
-                    // __m256d m_mean_xy = _mm256_broadcast_pd((__m128d*)(&mean[c]));
-                    // __m256d m_dist_xy = _mm256_sub_pd(m_data_xy, m_mean_xy);
-                    // m_dist_xy = _mm256_mul_pd(m_dist_xy, m_dist_xy);
-                    // __m256d m_dists = _mm256_hadd_pd(m_dist_xy, m_dist_xy);
                 }
 
                 if (coloring[i] != new_color)
@@ -201,8 +285,8 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                     coloring[i] = new_color;
                     local_converge = false;
                 }
-                sums_x[new_color] += data[i].getX();
-                sums_y[new_color] += data[i].getY();
+                sums_x[new_color] += data[i].x;
+                sums_y[new_color] += data[i].y;
                 counts[new_color]++;
             }
 
