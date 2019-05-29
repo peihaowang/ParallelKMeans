@@ -151,7 +151,11 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 {
     bool converge = true;
 
-    auto ts = std::chrono::high_resolution_clock::now();
+    int ntimes = 0;
+
+    // omp_set_num_threads(4);
+
+    // std::cout << "Run with " << omp_get_max_threads() << "threads" << std::endl;
 
     /* Loop through the following two stages until no point changes its color
        during an iteration. */
@@ -169,8 +173,9 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
             double sums_x[20] = {0.0f};
             double sums_y[20] = {0.0f};
             int counts[20] = {0};
+            bool local_converge = true;
 
-            #pragma omp for reduction(&& : converge)
+            #pragma omp for nowait
             for (int i = 0; i < pn; ++i)
             {
                 color_t new_color = cn;
@@ -190,22 +195,26 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                 if (coloring[i] != new_color)
                 {
                     coloring[i] = new_color;
-                    converge = false;
+                    local_converge = false;
                 }
-
                 sums_x[new_color] += data[i].getX();
                 sums_y[new_color] += data[i].getY();
                 counts[new_color]++;
             }
 
+            // The follows are two-stage pipelining reduction
             #pragma omp critical
             for (color_t c = 0; c < cn; ++c)
             {
-                agg_sums_x[c] += sums_x[c];
                 agg_sums_y[c] += sums_y[c];
-                agg_counts[c] += counts[c];
+                agg_sums_x[c] += sums_x[c];
             }
-
+            #pragma omp critical
+            for (color_t c = 0; c < cn; ++c)
+            {
+                agg_counts[c] += counts[c];
+                converge &= local_converge;
+            }
             // yhj
         }
 
@@ -215,6 +224,8 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
         {
             mean[c].setXY(agg_sums_x[c] / agg_counts[c], agg_sums_y[c] / agg_counts[c]);
         }
+
+        ntimes++;
     } while (!converge);
 }
 
