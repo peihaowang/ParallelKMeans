@@ -3,5 +3,6 @@ test/
 .venv/
 .DS_Store
 benchmark
+benchmark_*
 kmeans
 *.tar
