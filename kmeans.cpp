@@ -133,7 +133,8 @@ main (int argc, char *argv[])
 /*********************************************************
            Feel free to modify the things below
  *********************************************************/
-
+#define __ID__ 1
+#define UNUSED(X) (void)X
 /*
  * K-Means algorithm clustering. Originally implemented in a traditional
  *   sequential way. You should optimize and parallelize it for a better
@@ -156,6 +157,8 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 
     // std::cout << "Run with " << omp_get_max_threads() << "threads" << std::endl;
 
+    // int64_t t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0;
+
     /* Loop through the following two stages until no point changes its color
        during an iteration. */
     do {
@@ -165,6 +168,9 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
         double agg_sums_y[20] = {0.0f};
         int agg_counts[20] = {0};
 
+        // auto ts = std::chrono::steady_clock::now();
+        // auto te = std::chrono::steady_clock::now();
+
         /* Compute the color of each point. A point gets assigned to the
            cluster with the nearest center point. */
         #pragma omp parallel
@@ -173,21 +179,33 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
             double sums_x[20] = {0.0f};
             double sums_y[20] = {0.0f};
             int counts[20] = {0};
+
+            double sums_x_1[20] = {0.0f};
+            double sums_y_1[20] = {0.0f};
+            int counts_1[20] = {0};
             bool local_converge = true;
+            bool local_converge_1 = true;
 
             int thread_num = omp_get_num_threads();
             int id = omp_get_thread_num();
             int block_size = pn / thread_num;
-            int start = id * block_size, end = (id + 1) * block_size;
+            int tail_size = pn % thread_num;
 
-            if (pn - end < block_size){
-                end = pn;
-                block_size = end - start;
+            int start;
+            if(id + 1 <= tail_size){
+                block_size++;
+                start = id * block_size;
+            }else{
+                start = block_size * id + tail_size;
             }
+            int end = start + block_size;
 
-            for (int i = 0; i < block_size/4; ++i)
+            // #pragma omp critical
+            // std::cout << id << " " << start << " " << end << std::endl;
+
+            for (int i = start; i < start+(block_size/4)*4; i+=4)
             {
-                int j = start + (i << 2);
+                // int j = start + (i << 2);
                 // color_t new_color[4] = {cn};
                 // double min_dist[4] = {std::numeric_limits<double>::infinity()};
 
@@ -199,10 +217,24 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 
                 for (color_t c = 0; c < cn; ++c)
                 {
-                    __m128i vindex = _mm_set_epi32(6, 4, 2, 0);
-                    __m256d data_xs = _mm256_i32gather_pd((double*)(data+j), vindex, 8);
-                    __m256d data_ys = _mm256_i32gather_pd((double*)(data+j) + 1, vindex, 8);
-                                        
+                    // ts = std::chrono::steady_clock::now();
+
+                    __m256d packed_pt1 = _mm256_loadu_pd((double*)(data+i));
+                    __m256d packed_pt2 = _mm256_loadu_pd((double*)(data+i+2));
+
+                    __m256d data_xs = _mm256_unpackhi_pd(packed_pt1, packed_pt2);
+                    __m256d data_ys = _mm256_unpacklo_pd(packed_pt1, packed_pt2);
+
+                    if(id == 0 && i == 0){
+                        double v_dist[4];
+                        _mm256_store_pd(v_dist, data_xs);
+                        std::cout << v_dist[0] << " " << v_dist[1] << " " << v_dist[2] << " " << v_dist[3] << std::endl;
+                    }
+
+                    // __m128i vindex = _mm_set_epi32(6, 4, 2, 0);
+                    // __m256d data_xs = _mm256_i32gather_pd((double*)(data+i), vindex, 8);
+                    // __m256d data_ys = _mm256_i32gather_pd((double*)(data+i) + 1, vindex, 8);
+
                     __m256d mean_xs = _mm256_set1_pd(mean[c].x);
                     __m256d mean_ys = _mm256_set1_pd(mean[c].y);
 
@@ -213,7 +245,24 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                     diff_y = _mm256_mul_pd(diff_y, diff_y);
 
                     __m256d dist = _mm256_add_pd(diff_x, diff_y);
+
+                    // double v_dist[4];
+                    // _mm256_store_pd(v_dist, dist);
+                    // _mm256_store_pd(v_min_dist, min_dist);
+                    // for(int j = 0; j < 4; j++){
+                    //     if(v_dist[j] < v_min_dist[j]){
+                    //         ;
+                    //     }
+                    // }
+
                     
+                    // if(id == __ID__){
+                    //     te = std::chrono::steady_clock::now();
+                    //     t0 += std::chrono::duration_cast<std::chrono::milliseconds>(te - ts).count();
+                    // }
+
+                    // ts = std::chrono::steady_clock::now();
+
                     __m256d cmp = _mm256_cmp_pd(dist, min_dist, _CMP_LT_OQ);
 
                     min_dist = _mm256_or_pd(
@@ -230,39 +279,73 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                         )
                     );
 
-                    new_color = _mm256_cvtpd_epi32(
-                            _mm256_or_pd(
-                                _mm256_and_pd(
-                                    _mm256_cvtepi32_pd(new_color)
-                                    , _mm256_xor_pd(
-                                        cmp
-                                        , _mm256_set1_pd(all_one_double)
-                                    )
-                            )
-                            , _mm256_and_pd(
-                                _mm256_set1_pd((double)c)
-                                , cmp
+                    new_color = _mm256_cvtpd_epi32(_mm256_or_pd(
+                        _mm256_and_pd(
+                            _mm256_cvtepi32_pd(new_color)
+                            , _mm256_xor_pd(
+                                cmp
+                                , _mm256_set1_pd(all_one_double)
                             )
                         )
-                    );
+                        , _mm256_and_pd(
+                            _mm256_set1_pd((double)c)
+                            , cmp
+                        )
+                    ));
+
+                    // min_dist = 
+                    //     _mm256_and_pd(
+                    //         min_dist
+                    //         , cmp
+                    //     );
+
+                    // new_color = _mm256_cvtpd_epi32(
+                    //     _mm256_and_pd(
+                    //         _mm256_set1_pd((double)c)
+                    //         , cmp
+                    //     ));
+
+
+
+                    // if(id == __ID__){
+                    //     te = std::chrono::steady_clock::now();
+                    //     t1 += std::chrono::duration_cast<std::chrono::milliseconds>(te - ts).count();
+                    // }
                 }
+
+                // ts = std::chrono::steady_clock::now();
 
                 int v_new_colors[4];
                 _mm_storeu_si128((__m128i*)v_new_colors, new_color);
                 for(int c = 0; c < 4; c++){
-                    if (coloring[j+c] != v_new_colors[c])
+                    // if(id == 0){
+                    //     std::cout << i << " " << coloring[i+c] << " " << v_new_colors[c] << std::endl;
+                    // }
+
+                    if (coloring[i+c] != v_new_colors[c])
                     {
-                        coloring[j+c] = v_new_colors[c];
+                        // int old_value = coloring[i+c];
+                        coloring[i+c] = v_new_colors[c];
+                        // coloring[i+c] = old_value;
                         local_converge = false;
                     }
 
-                    sums_x[v_new_colors[c]] += data[j+c].x;
-                    sums_y[v_new_colors[c]] += data[j+c].y;
+                    sums_x[v_new_colors[c]] += data[i+c].x;
+                    sums_y[v_new_colors[c]] += data[i+c].y;
                     counts[v_new_colors[c]]++;
                 }
+
+
+                // if(id == __ID__){
+                //     te = std::chrono::steady_clock::now();
+                //     t2 += std::chrono::duration_cast<std::chrono::milliseconds>(te - ts).count();
+                // }
             }
 
+            // ts = std::chrono::steady_clock::now();
+
             for (int i = start + (block_size/4) * 4; i < end; ++i)
+            // for (int i = start; i < end; ++i)
             {
                 color_t new_color = cn;
                 double min_dist = std::numeric_limits<double>::infinity();
@@ -288,6 +371,14 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                 counts[new_color]++;
             }
 
+            // if(id == __ID__)
+            // {
+            //     te = std::chrono::steady_clock::now();
+            //     t3 += std::chrono::duration_cast<std::chrono::milliseconds>(te - ts).count();
+            // }
+
+            // ts = std::chrono::steady_clock::now();
+
             // The follows are two-stage pipelining reduction
             #pragma omp critical
             for (color_t c = 0; c < cn; ++c)
@@ -301,6 +392,13 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                 agg_counts[c] += counts[c];
                 converge &= local_converge;
             }
+
+            // if(id == __ID__)
+            // {
+            //     te = std::chrono::steady_clock::now();
+            //     t4 += std::chrono::duration_cast<std::chrono::milliseconds>(te - ts).count();
+            // }
+
             // yhj
         }
 
@@ -312,6 +410,13 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
         }
 
     } while (!converge);
+
+    // std::cout << "Distance: " << t0 << "ms" << std::endl
+    //     << "Selector: " << t1 << "ms" << std::endl
+    //     << "Coloring: " << t2 << "ms" << std::endl
+    //     << "Tail: " << t3 << "ms" << std::endl
+    //     << "Reduce: " << t4 << "ms" << std::endl
+    //     ;
 }
 
 /*********************************************************
