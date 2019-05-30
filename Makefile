@@ -39,8 +39,11 @@ test:
 cmp:
 	@rm -f test/test${ID}.out \
 	&& rm -f test/test${ID}_s.out \
+	&& rm -f test/test${ID}_l.out \
 	&& echo "==== PKMeans ====" \
 	&& ./kmeans ./test/test${ID}.in  test/test${ID}.out \
+	&& echo "=== Lzhy ===" \
+	&& ./kmeans_l ./test/test${ID}.in  test/test${ID}_l.out \
 	&& echo "=== Benchmark ===" \
 	&& ./benchmark ./test/test${ID}.in  test/test${ID}_s.out
 

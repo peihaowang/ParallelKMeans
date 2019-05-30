@@ -135,6 +135,8 @@ main (int argc, char *argv[])
  *********************************************************/
 #define __ID__ 1
 #define UNUSED(X) (void)X
+#define __PACK_2_BITS(a, b, c, d) ((d << 6) | (c << 4) | (b << 2) | a )
+
 /*
  * K-Means algorithm clustering. Originally implemented in a traditional
  *   sequential way. You should optimize and parallelize it for a better
@@ -222,14 +224,11 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                     __m256d packed_pt1 = _mm256_loadu_pd((double*)(data+i));
                     __m256d packed_pt2 = _mm256_loadu_pd((double*)(data+i+2));
 
-                    __m256d data_xs = _mm256_unpackhi_pd(packed_pt1, packed_pt2);
-                    __m256d data_ys = _mm256_unpacklo_pd(packed_pt1, packed_pt2);
+                    __m256d data_xs = _mm256_unpacklo_pd(packed_pt1, packed_pt2);
+                    __m256d data_ys = _mm256_unpackhi_pd(packed_pt1, packed_pt2);
 
-                    if(id == 0 && i == 0){
-                        double v_dist[4];
-                        _mm256_store_pd(v_dist, data_xs);
-                        std::cout << v_dist[0] << " " << v_dist[1] << " " << v_dist[2] << " " << v_dist[3] << std::endl;
-                    }
+                    data_xs = _mm256_permute4x64_pd(data_xs, __PACK_2_BITS(0, 2, 1, 3));
+                    data_ys = _mm256_permute4x64_pd(data_ys, __PACK_2_BITS(0, 2, 1, 3));
 
                     // __m128i vindex = _mm_set_epi32(6, 4, 2, 0);
                     // __m256d data_xs = _mm256_i32gather_pd((double*)(data+i), vindex, 8);
