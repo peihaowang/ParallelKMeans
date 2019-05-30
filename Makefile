@@ -17,7 +17,7 @@ ifeq ($(SYSNAME), Darwin)
 	CC=g++-9
 endif
 
-CFLAGS=-Wpedantic -Wall -Wextra -O2 -mavx -mavx2 -mvzeroupper -fopenmp -std=c++11
+CFLAGS=-Wpedantic -Wall -Werror -Wextra -O3 -mavx -mavx2 -mvzeroupper -fopenmp -std=c++11
 
 all: kmeans
 
@@ -40,10 +40,13 @@ cmp:
 	@rm -f test/test${ID}.out \
 	&& rm -f test/test${ID}_s.out \
 	&& rm -f test/test${ID}_l.out \
+	&& rm -f test/test${ID}_x.out \
 	&& echo "==== PKMeans ====" \
 	&& ./kmeans ./test/test${ID}.in  test/test${ID}.out \
 	&& echo "=== Lzhy ===" \
 	&& ./kmeans_l ./test/test${ID}.in  test/test${ID}_l.out \
+	&& echo "=== Xky ===" \
+	&& ./kmeans_x ./test/test${ID}.in  test/test${ID}_x.out \
 	&& echo "=== Benchmark ===" \
 	&& ./benchmark ./test/test${ID}.in  test/test${ID}_s.out
 

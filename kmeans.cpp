@@ -155,12 +155,6 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 {
     bool converge = true;
 
-    // omp_set_num_threads(4);
-
-    // std::cout << "Run with " << omp_get_max_threads() << "threads" << std::endl;
-
-    // int64_t t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0;
-
     /* Loop through the following two stages until no point changes its color
        during an iteration. */
     do {
@@ -170,9 +164,6 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
         double agg_sums_y[20] = {0.0f};
         int agg_counts[20] = {0};
 
-        // auto ts = std::chrono::steady_clock::now();
-        // auto te = std::chrono::steady_clock::now();
-
         /* Compute the color of each point. A point gets assigned to the
            cluster with the nearest center point. */
         #pragma omp parallel
@@ -181,12 +172,7 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
             double sums_x[20] = {0.0f};
             double sums_y[20] = {0.0f};
             int counts[20] = {0};
-
-            double sums_x_1[20] = {0.0f};
-            double sums_y_1[20] = {0.0f};
-            int counts_1[20] = {0};
             bool local_converge = true;
-            bool local_converge_1 = true;
 
             int thread_num = omp_get_num_threads();
             int id = omp_get_thread_num();
@@ -202,15 +188,8 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
             }
             int end = start + block_size;
 
-            // #pragma omp critical
-            // std::cout << id << " " << start << " " << end << std::endl;
-
             for (int i = start; i < start+(block_size/4)*4; i+=4)
             {
-                // int j = start + (i << 2);
-                // color_t new_color[4] = {cn};
-                // double min_dist[4] = {std::numeric_limits<double>::infinity()};
-
                 double all_one_double;
                 ::memset(&all_one_double, 0xFF, sizeof(double));
 
@@ -219,8 +198,6 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 
                 for (color_t c = 0; c < cn; ++c)
                 {
-                    // ts = std::chrono::steady_clock::now();
-
                     __m256d packed_pt1 = _mm256_loadu_pd((double*)(data+i));
                     __m256d packed_pt2 = _mm256_loadu_pd((double*)(data+i+2));
 
@@ -229,10 +206,6 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 
                     data_xs = _mm256_permute4x64_pd(data_xs, __PACK_2_BITS(0, 2, 1, 3));
                     data_ys = _mm256_permute4x64_pd(data_ys, __PACK_2_BITS(0, 2, 1, 3));
-
-                    // __m128i vindex = _mm_set_epi32(6, 4, 2, 0);
-                    // __m256d data_xs = _mm256_i32gather_pd((double*)(data+i), vindex, 8);
-                    // __m256d data_ys = _mm256_i32gather_pd((double*)(data+i) + 1, vindex, 8);
 
                     __m256d mean_xs = _mm256_set1_pd(mean[c].x);
                     __m256d mean_ys = _mm256_set1_pd(mean[c].y);
@@ -244,23 +217,6 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                     diff_y = _mm256_mul_pd(diff_y, diff_y);
 
                     __m256d dist = _mm256_add_pd(diff_x, diff_y);
-
-                    // double v_dist[4];
-                    // _mm256_store_pd(v_dist, dist);
-                    // _mm256_store_pd(v_min_dist, min_dist);
-                    // for(int j = 0; j < 4; j++){
-                    //     if(v_dist[j] < v_min_dist[j]){
-                    //         ;
-                    //     }
-                    // }
-
-                    
-                    // if(id == __ID__){
-                    //     te = std::chrono::steady_clock::now();
-                    //     t0 += std::chrono::duration_cast<std::chrono::milliseconds>(te - ts).count();
-                    // }
-
-                    // ts = std::chrono::steady_clock::now();
 
                     __m256d cmp = _mm256_cmp_pd(dist, min_dist, _CMP_LT_OQ);
 
@@ -291,41 +247,14 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                             , cmp
                         )
                     ));
-
-                    // min_dist = 
-                    //     _mm256_and_pd(
-                    //         min_dist
-                    //         , cmp
-                    //     );
-
-                    // new_color = _mm256_cvtpd_epi32(
-                    //     _mm256_and_pd(
-                    //         _mm256_set1_pd((double)c)
-                    //         , cmp
-                    //     ));
-
-
-
-                    // if(id == __ID__){
-                    //     te = std::chrono::steady_clock::now();
-                    //     t1 += std::chrono::duration_cast<std::chrono::milliseconds>(te - ts).count();
-                    // }
                 }
 
-                // ts = std::chrono::steady_clock::now();
-
-                int v_new_colors[4];
+                unsigned int v_new_colors[4];
                 _mm_storeu_si128((__m128i*)v_new_colors, new_color);
                 for(int c = 0; c < 4; c++){
-                    // if(id == 0){
-                    //     std::cout << i << " " << coloring[i+c] << " " << v_new_colors[c] << std::endl;
-                    // }
-
                     if (coloring[i+c] != v_new_colors[c])
                     {
-                        // int old_value = coloring[i+c];
                         coloring[i+c] = v_new_colors[c];
-                        // coloring[i+c] = old_value;
                         local_converge = false;
                     }
 
@@ -334,17 +263,9 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                     counts[v_new_colors[c]]++;
                 }
 
-
-                // if(id == __ID__){
-                //     te = std::chrono::steady_clock::now();
-                //     t2 += std::chrono::duration_cast<std::chrono::milliseconds>(te - ts).count();
-                // }
             }
 
-            // ts = std::chrono::steady_clock::now();
-
             for (int i = start + (block_size/4) * 4; i < end; ++i)
-            // for (int i = start; i < end; ++i)
             {
                 color_t new_color = cn;
                 double min_dist = std::numeric_limits<double>::infinity();
@@ -370,14 +291,6 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                 counts[new_color]++;
             }
 
-            // if(id == __ID__)
-            // {
-            //     te = std::chrono::steady_clock::now();
-            //     t3 += std::chrono::duration_cast<std::chrono::milliseconds>(te - ts).count();
-            // }
-
-            // ts = std::chrono::steady_clock::now();
-
             // The follows are two-stage pipelining reduction
             #pragma omp critical
             for (color_t c = 0; c < cn; ++c)
@@ -392,12 +305,6 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                 converge &= local_converge;
             }
 
-            // if(id == __ID__)
-            // {
-            //     te = std::chrono::steady_clock::now();
-            //     t4 += std::chrono::duration_cast<std::chrono::milliseconds>(te - ts).count();
-            // }
-
             // yhj
         }
 
@@ -405,17 +312,11 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
            of point positions in the cluster. */
         for (color_t c = 0; c < cn; ++c)
         {
-            mean[c].setXY(agg_sums_x[c] / agg_counts[c], agg_sums_y[c] / agg_counts[c]);
+            mean[c].x = agg_sums_x[c] / agg_counts[c];
+            mean[c].y = agg_sums_y[c] / agg_counts[c];
         }
 
     } while (!converge);
-
-    // std::cout << "Distance: " << t0 << "ms" << std::endl
-    //     << "Selector: " << t1 << "ms" << std::endl
-    //     << "Coloring: " << t2 << "ms" << std::endl
-    //     << "Tail: " << t3 << "ms" << std::endl
-    //     << "Reduce: " << t4 << "ms" << std::endl
-    //     ;
 }
 
 /*********************************************************
