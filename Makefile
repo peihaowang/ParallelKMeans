@@ -17,7 +17,7 @@ ifeq ($(SYSNAME), Darwin)
 	CC=g++-9
 endif
 
-CFLAGS=-Wpedantic -Wall -Wextra -O3 -mavx -mavx2 -fopenmp -std=c++11 -g
+CFLAGS=-Wpedantic -Wall -Wextra -O2 -mavx -mavx2 -fopenmp -std=c++11 -g
 
 all: kmeans
 

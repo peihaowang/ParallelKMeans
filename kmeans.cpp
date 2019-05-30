@@ -156,7 +156,7 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
         std::numeric_limits<double>::infinity()
     };
 
-    double init_new_colors[2] = {double(cn), double(cn)};
+    // uint64_t init_new_colors[2] = {color_t(cn), color_t(cn)};
 
     double full_ones_double = 0;
     memset(&full_ones_double, 0xFF, sizeof(full_ones_double));
@@ -206,7 +206,7 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
                 // double min_dist = std::numeric_limits<double>::infinity();
 
                 __m128d m_min_dists = _mm_loadu_pd(init_min_dists);
-                __m128d m_new_colors = _mm_loadu_pd(init_new_colors);
+                // __m128d m_new_colors = _mm_loadu_pd(init_new_colors);
                 color_t new_colors[2] = {color_t(cn), color_t(cn)};
 
                 // __m128i _mm_cvtepu8_epi16 (__m128i a)
@@ -347,7 +347,8 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
            of point positions in the cluster. */
         for (color_t c = 0; c < cn; ++c)
         {
-            mean[c].setXY(agg_sums_x[c] / agg_counts[c], agg_sums_y[c] / agg_counts[c]);
+            mean[c].x = agg_sums_x[c] / agg_counts[c];
+            mean[c].y = agg_sums_y[c] / agg_counts[c];
         }
 
 
