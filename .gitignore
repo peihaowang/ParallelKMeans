@@ -5,4 +5,5 @@ test/
 benchmark
 benchmark_*
 kmeans
+kmeans_*
 *.tar
