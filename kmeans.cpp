@@ -155,8 +155,6 @@ kmeans (point_t * const data, point_t * const mean, color_t * const coloring,
 {
     bool converge = true;
     
-    // std::cout << (int)(init_min_dists[0]) << " " << (int)(init_min_dists[1]) << std::endl;
-
     /* Loop through the following two stages until no point changes its color
        during an iteration. */
     do {
